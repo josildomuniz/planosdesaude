@@ -144,29 +144,40 @@ def whatsapp_webhook():
 
     # --- Lógica Principal do Chatbot baseada no estado da conversa ---
 
-    # Início da Conversa / Voltar ao Menu Principal
-    if current_state == 'initial' or incoming_msg in ["olá", "oi", "menu", "voltar", "iniciar"]:
+    # 1. TRATAMENTO DE REINÍCIO OU FIM DE FLUXO
+    # Se o usuário está iniciando ou quer voltar ao menu principal
+    if incoming_msg in ["olá", "oi", "menu", "voltar", "iniciar"] or current_state == 'initial' or current_state == 'finished':
         user_states[sender_number] = 'main_menu'
         user_data[sender_number] = {} # Limpa dados anteriores ao iniciar um novo fluxo
         msg.body(get_main_menu_text())
-        return str(resp) # Retorna para não processar mais nada neste ciclo
+        return str(resp) # Retorna imediatamente após enviar o menu principal
+
+    # 2. TRATAMENTO DOS FLUXOS POR ESTADO
+    # A ordem aqui é importante: do mais específico para o mais geral dentro de cada estado.
 
     # --- Caminho 1: Quero uma cotação ---
     if current_state == 'main_menu' and incoming_msg == '1':
         user_states[sender_number] = 'quotation_who'
         msg.body(get_quotation_who_text())
     
-    # Caminho 1.1: Para mim / Para minha família
+    # Estados de QUOTATION_WHO para QUOTATION_AGE/PME
     elif current_state == 'quotation_who':
-        if incoming_msg in ['1', '2']:
-            user_data[sender_number]['tipo_plano'] = 'individual_familia' if incoming_msg == '1' else 'familia'
+        if incoming_msg == '1': # Para mim
+            user_data[sender_number]['tipo_plano'] = 'individual'
             user_states[sender_number] = 'quotation_age'
             msg.body(get_age_range_text())
+        elif incoming_msg == '2': # Para minha família
+            user_data[sender_number]['tipo_plano'] = 'familia'
+            user_states[sender_number] = 'quotation_age'
+            msg.body(get_age_range_text())
+        elif incoming_msg == '3': # Para minha empresa (PME)
+            user_data[sender_number]['tipo_plano'] = 'pme'
+            user_states[sender_number] = 'quotation_pme_beneficiaries'
+            msg.body(get_pme_beneficiaries_text())
         else:
-            msg.body("Opção inválida. Por favor, digite '1' para 'Para mim', '2' para 'Para minha família' ou '3' para 'Para minha empresa'.")
-            # Mantém o estado para que o usuário tente novamente a mesma pergunta
-            # user_states[sender_number] = 'quotation_who' # Já está neste estado
+            msg.body("Opção inválida. Por favor, digite '1' para 'Para mim', '2' para 'Para minha família' ou '3' para 'Para minha empresa (PME)'.")
     
+    # Estados de QUOTATION_AGE
     elif current_state == 'quotation_age':
         if incoming_msg in ['1', '2', '3', '4']:
             user_data[sender_number]['faixa_idade'] = incoming_msg
@@ -175,6 +186,7 @@ def whatsapp_webhook():
         else:
             msg.body("Opção inválida. Por favor, digite 1, 2, 3 ou 4 para a faixa de idade.")
     
+    # Estados de QUOTATION_REGION
     elif current_state == 'quotation_region':
         if incoming_msg in ['1', '2']:
             user_data[sender_number]['regiao_atendimento'] = incoming_msg
@@ -183,6 +195,7 @@ def whatsapp_webhook():
         else:
             msg.body("Opção inválida. Por favor, digite '1' para 'Local' ou '2' para 'Nacional'.")
 
+    # Estados de QUOTATION_MEDICAL_DENTAL
     elif current_state == 'quotation_medical_dental':
         if incoming_msg in ['1', '2', '3']:
             user_data[sender_number]['preferencia_convenio'] = incoming_msg
@@ -191,22 +204,16 @@ def whatsapp_webhook():
         else:
             msg.body("Opção inválida. Por favor, digite '1' para 'Médico', '2' para 'Odontológico' ou '3' para 'Ambos'.")
 
+    # Estados de QUOTATION_COLLECT_PHONE (Final do fluxo Individual/Família)
     elif current_state == 'quotation_collect_phone':
-        # Qualquer texto recebido aqui é considerado o telefone
         user_data[sender_number]['telefone_contato'] = incoming_msg
-        
         # --- FINAL DO FLUXO DE COTAÇÃO INDIVIDUAL/FAMÍLIA ---
         print(f"Dados coletados para cotação individual/família de {sender_number}: {user_data[sender_number]}")
         msg.body("Recebemos seus dados! Josildo vai analisar e entrar em contato em breve com as opções ideais para você. Obrigado!")
         user_states[sender_number] = 'finished' # Marca o fluxo como finalizado
         user_data[sender_number] = {} # Limpa os dados do usuário após o fim do fluxo
     
-    # Caminho 1.2: Para minha empresa (PME)
-    elif current_state == 'quotation_who' and incoming_msg == '3':
-        user_data[sender_number]['tipo_plano'] = 'pme'
-        user_states[sender_number] = 'quotation_pme_beneficiaries'
-        msg.body(get_pme_beneficiaries_text())
-
+    # Estados de QUOTATION_PME_BENEFICIARIES
     elif current_state == 'quotation_pme_beneficiaries':
         if incoming_msg in ['1', '2', '3']:
             user_data[sender_number]['num_beneficiarios_pme'] = incoming_msg
@@ -215,6 +222,7 @@ def whatsapp_webhook():
         else:
             msg.body("Opção inválida. Por favor, digite 1, 2 ou 3 para o número de beneficiários.")
 
+    # Estados de QUOTATION_PME_REGION
     elif current_state == 'quotation_pme_region':
         if incoming_msg in ['1', '2']:
             user_data[sender_number]['regiao_pme'] = incoming_msg
@@ -223,10 +231,9 @@ def whatsapp_webhook():
         else:
             msg.body("Opção inválida. Por favor, digite '1' para 'Local' ou '2' para 'Nacional'.")
 
+    # Estados de QUOTATION_PME_COLLECT_DATA (Final do fluxo PME)
     elif current_state == 'quotation_pme_collect_data':
-        # Qualquer texto recebido aqui é considerado os dados PME
         user_data[sender_number]['dados_pme'] = incoming_msg
-        
         # --- FINAL DO FLUXO DE COTAÇÃO PME ---
         print(f"Dados coletados para cotação PME de {sender_number}: {user_data[sender_number]}")
         msg.body("Recebemos seus dados! Josildo entrará em contato para entender melhor as necessidades da sua empresa e apresentar as melhores propostas. Obrigado!")
@@ -238,6 +245,7 @@ def whatsapp_webhook():
         user_states[sender_number] = 'doubt_type'
         msg.body(get_doubt_type_text())
 
+    # Estados de DOUBT_TYPE
     elif current_state == 'doubt_type':
         if incoming_msg == '1': # Cobertura do plano
             user_states[sender_number] = 'doubt_coverage_collect_plan'
@@ -384,32 +392,18 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
         
-    # --- Tratamento de entradas inválidas ou fluxo finalizado ---
-    # Se o estado for 'finished', o bot envia o menu inicial novamente na próxima mensagem.
-    # Isso impede que o bot fique em silêncio após um fluxo completo.
-    if current_state == 'finished':
-        # Após a mensagem de 'agradecimento/finalização', reseta para o menu principal na próxima interação.
-        # Ou você pode fazer isso explicitamente enviando o menu novamente aqui.
-        pass # A próxima mensagem do usuário irá capturar a 'initial' ou 'main_menu' condição
+    # --- Tratamento de entradas inválidas em qualquer outro estado não capturado ---
+    else:
+        # Se chegou aqui, a mensagem não foi tratada por nenhum fluxo específico
+        # ou o usuário está em um estado que não esperava essa mensagem.
+        msg.body(
+            "Desculpe, não entendi sua resposta. "
+            "Por favor, digite uma opção válida para o menu atual ou 'menu' para voltar ao início."
+        )
 
-    elif user_states.get(sender_number) not in ['initial', 'main_menu', 'finished']:
-        # Esta condição pega qualquer entrada que não corresponde a uma opção esperada
-        # dentro de um fluxo ativo, e que não seja um comando de retorno ao menu.
-        msg.body(
-            "Desculpe, não entendi sua resposta para esta etapa. "
-            "Por favor, digite uma opção válida ou 'menu' para voltar ao início."
-        )
-    elif user_states.get(sender_number) == 'main_menu' and incoming_msg not in ['1', '2', '3', '4']:
-        # Se está no menu principal, mas a opção não é válida.
-        msg.body(
-            "Opção inválida no menu principal. Por favor, digite '1', '2', '3' ou '4'. "
-            "Ou digite 'Olá' para ver o menu novamente."
-        )
-    
     return str(resp)
 
 # Para rodar localmente (não afeta o Render)
 if __name__ == "__main__":
     print("Aplicativo Flask rodando localmente (se executado diretamente).")
-    # Certifique-se de que o .env está configurado localmente se for testar.
     app.run(debug=True, port=int(os.getenv("PORT", 5000)))
