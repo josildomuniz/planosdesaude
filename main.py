@@ -128,7 +128,7 @@ def save_user_data(phone_number, data):
         print(f"ERRO: Não foi possível salvar dados '{data}' para {phone_number}, conexão com DB falhou.")
 
 # --- Webhook do WhatsApp ---
-@app.route("/whatsapp", methods=['POST'])
+@app.route("/webhook", methods=['POST'])
 def whatsapp_webhook():
     print("\n--- Início do Processamento ---") # Log no início de cada requisição
 
@@ -262,4 +262,3 @@ if __name__ == '__main__':
     # if DATABASE_URL:
     #     create_tables()
     app.run(debug=True) # debug=True ativa o modo de depuração para testes locais
-    
