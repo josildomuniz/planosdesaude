@@ -143,21 +143,25 @@ def whatsapp_webhook():
     current_state = user_states.get(sender_number, 'initial')
 
     # --- 1. TRATAMENTO DE REINÍCIO OU FIM DE FLUXO ---
-    # Se o usuário inicia a conversa, ou usa um comando de reinício, ou o fluxo anterior terminou.
+    # Esta é a condição mais importante e deve vir primeiro.
+    # Se o usuário está iniciando a conversa, usando um comando de reinício,
+    # ou se o fluxo anterior foi marcado como 'finished'.
     if incoming_msg in ["olá", "oi", "menu", "voltar", "iniciar"] or \
        current_state == 'initial' or \
        current_state == 'finished':
         
         user_states[sender_number] = 'main_menu'
-        user_data[sender_number] = {} # Limpa dados anteriores ao iniciar um novo fluxo
+        user_data[sender_number] = {} # Limpa dados anteriores para um novo fluxo
         msg.body(get_main_menu_text())
-        return str(resp) # ENCERRAR O PROCESSAMENTO AQUI
+        return str(resp) # ENCERRAR O PROCESSAMENTO AQUI para evitar lógica adicional.
 
-    # --- 2. PROCESSAMENTO BASEADO NO ESTADO ATUAL ---
-    # Agora, tratamos as mensagens com base no estado em que o usuário se encontra.
+    # --- 2. LÓGICA DO CHATBOT BASEADA NO ESTADO ATUAL ---
+    # Cada 'elif' a seguir corresponde a um estado específico.
+    # A ordem desses 'elif' gerais NÃO importa tanto, pois o 'current_state' direciona a lógica.
+    # O que importa é a lógica interna de cada bloco de estado.
 
     # --- ESTADO: main_menu ---
-    if current_state == 'main_menu':
+    elif current_state == 'main_menu':
         if incoming_msg == '1': # Quero uma cotação
             user_states[sender_number] = 'quotation_who'
             msg.body(get_quotation_who_text())
@@ -170,13 +174,14 @@ def whatsapp_webhook():
         elif incoming_msg == '4': # Outro assunto
             user_states[sender_number] = 'other_subject_description'
             msg.body("Ok! Para que eu possa te direcionar, por favor, descreva brevemente o assunto no campo abaixo:")
-        else: # Opção inválida no menu principal
+        else: # Opção inválida para o menu principal
             msg.body(
-                "Opção inválida no menu principal. Por favor, digite '1', '2', '3' ou '4'. "
-                "Ou digite 'Olá' para ver o menu novamente."
+                "Opção inválida. Por favor, digite '1' para *Quero uma cotação*, '2' para *Tenho dúvidas sobre um plano*, "
+                "'3' para *Preciso de suporte* ou '4' para *Outro assunto*.\n"
+                "Você também pode digitar 'menu' a qualquer momento para voltar ao início."
             )
 
-    # --- ESTADO: quotation_who (Caminho 1.1 e 1.2) ---
+    # --- ESTADO: quotation_who --- (Pergunta: Para quem seria o plano?)
     elif current_state == 'quotation_who':
         if incoming_msg == '1': # Para mim
             user_data[sender_number]['tipo_plano'] = 'individual'
@@ -190,71 +195,73 @@ def whatsapp_webhook():
             user_data[sender_number]['tipo_plano'] = 'pme'
             user_states[sender_number] = 'quotation_pme_beneficiaries'
             msg.body(get_pme_beneficiaries_text())
-        else:
-            msg.body("Opção inválida. Por favor, digite '1' para 'Para mim', '2' para 'Para minha família' ou '3' para 'Para minha empresa (PME)'.")
+        else: # Opção inválida para quotation_who
+            msg.body("Opção inválida. Por favor, digite '1' para *Para mim*, '2' para *Para minha família* ou '3' para *Para minha empresa (PME)*.")
     
-    # --- ESTADO: quotation_age ---
+    # --- ESTADO: quotation_age --- (Pergunta: Qual faixa de idade?)
     elif current_state == 'quotation_age':
         if incoming_msg in ['1', '2', '3', '4']:
             user_data[sender_number]['faixa_idade'] = incoming_msg
             user_states[sender_number] = 'quotation_region'
             msg.body(get_region_text())
-        else:
+        else: # Opção inválida para quotation_age
             msg.body("Opção inválida. Por favor, digite 1, 2, 3 ou 4 para a faixa de idade.")
     
-    # --- ESTADO: quotation_region ---
+    # --- ESTADO: quotation_region --- (Pergunta: Região de atendimento?)
     elif current_state == 'quotation_region':
         if incoming_msg in ['1', '2']:
             user_data[sender_number]['regiao_atendimento'] = incoming_msg
             user_states[sender_number] = 'quotation_medical_dental'
             msg.body(get_medical_dental_text())
-        else:
-            msg.body("Opção inválida. Por favor, digite '1' para 'Local' ou '2' para 'Nacional'.")
+        else: # Opção inválida para quotation_region
+            msg.body("Opção inválida. Por favor, digite '1' para *Local* ou '2' para *Nacional*.")
 
-    # --- ESTADO: quotation_medical_dental ---
+    # --- ESTADO: quotation_medical_dental --- (Pergunta: Preferência por convênio?)
     elif current_state == 'quotation_medical_dental':
         if incoming_msg in ['1', '2', '3']:
             user_data[sender_number]['preferencia_convenio'] = incoming_msg
             user_states[sender_number] = 'quotation_collect_phone'
             msg.body("Para finalizarmos e Josildo te enviar as melhores opções, por favor, digite seu melhor telefone com DDD.")
-        else:
-            msg.body("Opção inválida. Por favor, digite '1' para 'Médico', '2' para 'Odontológico' ou '3' para 'Ambos'.")
+        else: # Opção inválida para quotation_medical_dental
+            msg.body("Opção inválida. Por favor, digite '1' para *Médico*, '2' para *Odontológico* ou '3' para *Ambos*.")
 
-    # --- ESTADO: quotation_collect_phone (FINAL Cotação Individual/Família) ---
+    # --- ESTADO: quotation_collect_phone --- (Coleta de telefone e FINAL do fluxo Cotação Individual/Família)
     elif current_state == 'quotation_collect_phone':
+        # Qualquer texto recebido aqui é considerado o telefone
         user_data[sender_number]['telefone_contato'] = incoming_msg
         print(f"Dados coletados para cotação individual/família de {sender_number}: {user_data[sender_number]}")
         msg.body("Recebemos seus dados! Josildo vai analisar e entrar em contato em breve com as opções ideais para você. Obrigado!")
-        user_states[sender_number] = 'finished'
-        user_data[sender_number] = {} # Limpa os dados
+        user_states[sender_number] = 'finished' # Marca o fluxo como finalizado
+        user_data[sender_number] = {} # Limpa os dados do usuário para o próximo fluxo
 
-    # --- ESTADO: quotation_pme_beneficiaries ---
+    # --- ESTADO: quotation_pme_beneficiaries --- (Pergunta: Quantos beneficiários PME?)
     elif current_state == 'quotation_pme_beneficiaries':
         if incoming_msg in ['1', '2', '3']:
             user_data[sender_number]['num_beneficiarios_pme'] = incoming_msg
             user_states[sender_number] = 'quotation_pme_region'
             msg.body(get_pme_region_text())
-        else:
+        else: # Opção inválida para quotation_pme_beneficiaries
             msg.body("Opção inválida. Por favor, digite 1, 2 ou 3 para o número de beneficiários.")
 
-    # --- ESTADO: quotation_pme_region ---
+    # --- ESTADO: quotation_pme_region --- (Pergunta: Região de cobertura PME?)
     elif current_state == 'quotation_pme_region':
         if incoming_msg in ['1', '2']:
             user_data[sender_number]['regiao_pme'] = incoming_msg
             user_states[sender_number] = 'quotation_pme_collect_data'
             msg.body("Para Josildo te apresentar as melhores soluções empresariais, por favor, digite o CNPJ da empresa, seu nome e telefone com DDD.")
-        else:
-            msg.body("Opção inválida. Por favor, digite '1' para 'Local' ou '2' para 'Nacional'.")
+        else: # Opção inválida para quotation_pme_region
+            msg.body("Opção inválida. Por favor, digite '1' para *Local* ou '2' para *Nacional*.")
 
-    # --- ESTADO: quotation_pme_collect_data (FINAL Cotação PME) ---
+    # --- ESTADO: quotation_pme_collect_data --- (Coleta de dados PME e FINAL do fluxo Cotação PME)
     elif current_state == 'quotation_pme_collect_data':
+        # Qualquer texto recebido aqui é considerado os dados PME
         user_data[sender_number]['dados_pme'] = incoming_msg
         print(f"Dados coletados para cotação PME de {sender_number}: {user_data[sender_number]}")
         msg.body("Recebemos seus dados! Josildo entrará em contato para entender melhor as necessidades da sua empresa e apresentar as melhores propostas. Obrigado!")
-        user_states[sender_number] = 'finished'
+        user_states[sender_number] = 'finished' # Marca o fluxo como finalizado
         user_data[sender_number] = {} # Limpa os dados
 
-    # --- ESTADO: doubt_type (Caminho 2) ---
+    # --- ESTADO: doubt_type --- (Caminho 2: Qual tipo de dúvida?)
     elif current_state == 'doubt_type':
         if incoming_msg == '1': # Cobertura do plano
             user_states[sender_number] = 'doubt_coverage_collect_plan'
@@ -271,16 +278,16 @@ def whatsapp_webhook():
         elif incoming_msg == '5': # Outra dúvida
             user_states[sender_number] = 'doubt_other_description'
             msg.body("Compreendo! Para que Josildo possa te ajudar com sua dúvida específica, por favor, descreva-a brevemente no campo abaixo:")
-        else:
+        else: # Opção inválida para doubt_type
             msg.body("Opção inválida. Por favor, digite 1, 2, 3, 4 ou 5 para o tipo de dúvida.")
     
-    # --- ESTADO: doubt_coverage_collect_plan ---
+    # --- ESTADO: doubt_coverage_collect_plan --- (Coleta de plano/operadora para dúvida de cobertura)
     elif current_state == 'doubt_coverage_collect_plan':
         user_data[sender_number]['plano_operadora_duvida_cobertura'] = incoming_msg
         user_states[sender_number] = 'doubt_coverage_collect_contact'
         msg.body("Entendido! Josildo é a pessoa ideal para esclarecer todas as coberturas. Por favor, digite seu nome e telefone com DDD para que ele entre em contato com você.")
     
-    # --- ESTADO: doubt_coverage_collect_contact (FINAL Cobertura do plano) ---
+    # --- ESTADO: doubt_coverage_collect_contact --- (Coleta de contato e FINAL do fluxo Cobertura do plano)
     elif current_state == 'doubt_coverage_collect_contact':
         user_data[sender_number]['contato_duvida_cobertura'] = incoming_msg
         print(f"Dados coletados para dúvida de cobertura de {sender_number}: {user_data[sender_number]}")
@@ -288,13 +295,13 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
     
-    # --- ESTADO: doubt_readjustment_collect_plan ---
+    # --- ESTADO: doubt_readjustment_collect_plan --- (Coleta de plano/operadora para dúvida de reajuste)
     elif current_state == 'doubt_readjustment_collect_plan':
         user_data[sender_number]['plano_operadora_reajuste'] = incoming_msg
         user_states[sender_number] = 'doubt_readjustment_collect_contact'
         msg.body("Ótimo! Para que Josildo te dê um suporte mais preciso, por favor, digite seu nome e telefone com DDD.")
     
-    # --- ESTADO: doubt_readjustment_collect_contact (FINAL Reajuste/Valores) ---
+    # --- ESTADO: doubt_readjustment_collect_contact --- (Coleta de contato e FINAL do fluxo Reajuste/Valores)
     elif current_state == 'doubt_readjustment_collect_contact':
         user_data[sender_number]['contato_reajuste'] = incoming_msg
         print(f"Dados coletados para dúvida de reajuste/valores de {sender_number}: {user_data[sender_number]}")
@@ -302,16 +309,16 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
 
-    # --- ESTADO: doubt_care_seeking ---
+    # --- ESTADO: doubt_care_seeking --- (Pergunta: Já tem plano ou buscando?)
     elif current_state == 'doubt_care_seeking':
         if incoming_msg in ['1', '2']:
             user_data[sender_number]['car_seeking_type'] = incoming_msg
             user_states[sender_number] = 'doubt_care_collect_contact'
             msg.body("Perfeito! Para que Josildo possa te explicar tudo sobre carências, por favor, digite seu nome e telefone com DDD.")
-        else:
-            msg.body("Opção inválida. Por favor, digite '1' para 'Já tenho um plano' ou '2' para 'Estou buscando um novo plano'.")
+        else: # Opção inválida para doubt_care_seeking
+            msg.body("Opção inválida. Por favor, digite '1' para *Já tenho um plano* ou '2' para *Estou buscando um novo plano*.")
     
-    # --- ESTADO: doubt_care_collect_contact (FINAL Carências) ---
+    # --- ESTADO: doubt_care_collect_contact --- (Coleta de contato e FINAL do fluxo Carências)
     elif current_state == 'doubt_care_collect_contact':
         user_data[sender_number]['contato_carencias'] = incoming_msg
         print(f"Dados coletados para dúvida de carências de {sender_number}: {user_data[sender_number]}")
@@ -319,13 +326,13 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
 
-    # --- ESTADO: doubt_how_to_use_collect_operator ---
+    # --- ESTADO: doubt_how_to_use_collect_operator --- (Coleta de operadora para dúvida de como usar)
     elif current_state == 'doubt_how_to_use_collect_operator':
         user_data[sender_number]['operadora_como_usar'] = incoming_msg
         user_states[sender_number] = 'doubt_how_to_use_collect_contact'
         msg.body("Para te dar o melhor suporte, por favor, digite seu nome e telefone com DDD. Josildo vai te orientar.")
 
-    # --- ESTADO: doubt_how_to_use_collect_contact (FINAL Como usar o plano) ---
+    # --- ESTADO: doubt_how_to_use_collect_contact --- (Coleta de contato e FINAL do fluxo Como usar o plano)
     elif current_state == 'doubt_how_to_use_collect_contact':
         user_data[sender_number]['contato_como_usar'] = incoming_msg
         print(f"Dados coletados para dúvida de como usar o plano de {sender_number}: {user_data[sender_number]}")
@@ -333,13 +340,13 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
 
-    # --- ESTADO: doubt_other_description ---
+    # --- ESTADO: doubt_other_description --- (Coleta da descrição de "Outra dúvida")
     elif current_state == 'doubt_other_description':
         user_data[sender_number]['outra_duvida_descricao'] = incoming_msg
         user_states[sender_number] = 'doubt_other_collect_contact'
         msg.body("Obrigado! Para que Josildo possa te retornar, por favor, digite seu nome e telefone com DDD.")
 
-    # --- ESTADO: doubt_other_collect_contact (FINAL Outra dúvida) ---
+    # --- ESTADO: doubt_other_collect_contact --- (Coleta de contato e FINAL do fluxo Outra dúvida)
     elif current_state == 'doubt_other_collect_contact':
         user_data[sender_number]['contato_outra_duvida'] = incoming_msg
         print(f"Dados coletados para outra dúvida de {sender_number}: {user_data[sender_number]}")
@@ -347,7 +354,7 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
         
-    # --- ESTADO: support_type (Caminho 3) ---
+    # --- ESTADO: support_type --- (Caminho 3: Qual tipo de suporte?)
     elif current_state == 'support_type':
         if incoming_msg == '1': # Falar com Especialista
             user_states[sender_number] = 'support_specialist_collect_contact'
@@ -358,10 +365,10 @@ def whatsapp_webhook():
         elif incoming_msg == '3': # Problema com o boleto
             user_states[sender_number] = 'support_billing_description'
             msg.body("Entendido! Para te ajudar com o problema, por favor, descreva-o brevemente e digite seu nome e telefone com DDD.")
-        else:
+        else: # Opção inválida para support_type
             msg.body("Opção inválida. Por favor, digite 1, 2 ou 3 para o tipo de suporte.")
 
-    # --- ESTADO: support_specialist_collect_contact (FINAL Falar com Especialista) ---
+    # --- ESTADO: support_specialist_collect_contact --- (Coleta de contato e FINAL Falar com Especialista)
     elif current_state == 'support_specialist_collect_contact':
         user_data[sender_number]['contato_especialista'] = incoming_msg
         print(f"Dados coletados para falar com especialista de {sender_number}: {user_data[sender_number]}")
@@ -369,7 +376,7 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
 
-    # --- ESTADO: support_meeting_collect_data (FINAL Agendar reunião) ---
+    # --- ESTADO: support_meeting_collect_data --- (Coleta de dados e FINAL Agendar reunião)
     elif current_state == 'support_meeting_collect_data':
         user_data[sender_number]['dados_reuniao'] = incoming_msg
         print(f"Dados coletados para agendamento de reunião de {sender_number}: {user_data[sender_number]}")
@@ -377,7 +384,7 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
 
-    # --- ESTADO: support_billing_description (FINAL Problema com o boleto) ---
+    # --- ESTADO: support_billing_description --- (Coleta de descrição e FINAL Problema com o boleto)
     elif current_state == 'support_billing_description':
         user_data[sender_number]['problema_boleto_descricao'] = incoming_msg
         print(f"Dados coletados para problema com boleto de {sender_number}: {user_data[sender_number]}")
@@ -385,13 +392,13 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
 
-    # --- ESTADO: other_subject_description (Caminho 4) ---
+    # --- ESTADO: other_subject_description --- (Caminho 4: Coleta da descrição de "Outro assunto")
     elif current_state == 'other_subject_description':
         user_data[sender_number]['outro_assunto_descricao'] = incoming_msg
         user_states[sender_number] = 'other_subject_collect_contact'
         msg.body("Entendido! Para que Josildo ou a equipe adequada possa te ajudar, por favor, digite seu nome e telefone com DDD.")
 
-    # --- ESTADO: other_subject_collect_contact (FINAL Outro assunto) ---
+    # --- ESTADO: other_subject_collect_contact --- (Coleta de contato e FINAL Outro assunto)
     elif current_state == 'other_subject_collect_contact':
         user_data[sender_number]['contato_outro_assunto'] = incoming_msg
         print(f"Dados coletados para outro assunto de {sender_number}: {user_data[sender_number]}")
@@ -399,13 +406,13 @@ def whatsapp_webhook():
         user_states[sender_number] = 'finished'
         user_data[sender_number] = {}
         
-    # --- 3. TRATAMENTO DE ENTRADAS NÃO RECONHECIDAS EM QUALQUER ESTADO ---
-    # Este 'else' só será alcançado se o current_state não for 'initial', 'finished',
-    # e a mensagem do usuário não se encaixar em NENHUMA das condições para o current_state.
+    # --- 3. TRATAMENTO DE ENTRADAS NÃO RECONHECIDAS (Fallback) ---
+    # Este 'else' só será alcançado se o 'current_state' não foi 'initial' ou 'finished'
+    # e a 'incoming_msg' não se encaixou em nenhuma das condições para o 'current_state' específico.
     else:
         msg.body(
-            "Desculpe, não entendi sua resposta. "
-            "Por favor, digite uma opção válida para o menu atual ou 'menu' para voltar ao início."
+            "Desculpe, não entendi sua resposta para esta etapa da conversa. "
+            "Por favor, digite uma opção válida ou 'menu' para voltar ao início."
         )
 
     return str(resp)
