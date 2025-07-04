@@ -162,36 +162,46 @@ def whatsapp_webhook():
 
     # --- ESTADO: main_menu ---
     elif current_state == 'main_menu':
-        if incoming_msg == '1': # Quero uma cotação
+        # Converte a entrada para inteiro, se possível, para facilitar a comparação numérica
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0 # Define como 0 para cair no else se não for um número
+
+        if choice == 1: # Quero uma cotação
             user_states[sender_number] = 'quotation_who'
             msg.body(get_quotation_who_text())
-        elif incoming_msg == '2': # Tenho dúvidas sobre um plano
+        elif choice == 2: # Tenho dúvidas sobre um plano
             user_states[sender_number] = 'doubt_type'
             msg.body(get_doubt_type_text())
-        elif incoming_msg == '3': # Preciso de suporte
+        elif choice == 3: # Preciso de suporte
             user_states[sender_number] = 'support_type'
             msg.body(get_support_type_text())
-        elif incoming_msg == '4': # Outro assunto
+        elif choice == 4: # Outro assunto
             user_states[sender_number] = 'other_subject_description'
             msg.body("Ok! Para que eu possa te direcionar, por favor, descreva brevemente o assunto no campo abaixo:")
         else: # Opção inválida para o menu principal
             msg.body(
-                "Opção inválida. Por favor, digite '1' para *Quero uma cotação*, '2' para *Tenho dúvidas sobre um plano*, "
-                "'3' para *Preciso de suporte* ou '4' para *Outro assunto*.\n"
+                "Opção inválida. Por favor, digite '1', '2', '3' ou '4'.\n"
                 "Você também pode digitar 'menu' a qualquer momento para voltar ao início."
             )
 
     # --- ESTADO: quotation_who --- (Pergunta: Para quem seria o plano?)
     elif current_state == 'quotation_who':
-        if incoming_msg == '1': # Para mim
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0
+
+        if choice == 1: # Para mim
             user_data[sender_number]['tipo_plano'] = 'individual'
             user_states[sender_number] = 'quotation_age'
             msg.body(get_age_range_text())
-        elif incoming_msg == '2': # Para minha família
+        elif choice == 2: # Para minha família
             user_data[sender_number]['tipo_plano'] = 'familia'
             user_states[sender_number] = 'quotation_age'
             msg.body(get_age_range_text())
-        elif incoming_msg == '3': # Para minha empresa (PME)
+        elif choice == 3: # Para minha empresa (PME)
             user_data[sender_number]['tipo_plano'] = 'pme'
             user_states[sender_number] = 'quotation_pme_beneficiaries'
             msg.body(get_pme_beneficiaries_text())
@@ -200,7 +210,12 @@ def whatsapp_webhook():
     
     # --- ESTADO: quotation_age --- (Pergunta: Qual faixa de idade?)
     elif current_state == 'quotation_age':
-        if incoming_msg in ['1', '2', '3', '4']:
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0
+
+        if choice in [1, 2, 3, 4]:
             user_data[sender_number]['faixa_idade'] = incoming_msg
             user_states[sender_number] = 'quotation_region'
             msg.body(get_region_text())
@@ -209,7 +224,12 @@ def whatsapp_webhook():
     
     # --- ESTADO: quotation_region --- (Pergunta: Região de atendimento?)
     elif current_state == 'quotation_region':
-        if incoming_msg in ['1', '2']:
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0
+
+        if choice in [1, 2]:
             user_data[sender_number]['regiao_atendimento'] = incoming_msg
             user_states[sender_number] = 'quotation_medical_dental'
             msg.body(get_medical_dental_text())
@@ -218,7 +238,12 @@ def whatsapp_webhook():
 
     # --- ESTADO: quotation_medical_dental --- (Pergunta: Preferência por convênio?)
     elif current_state == 'quotation_medical_dental':
-        if incoming_msg in ['1', '2', '3']:
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0
+
+        if choice in [1, 2, 3]:
             user_data[sender_number]['preferencia_convenio'] = incoming_msg
             user_states[sender_number] = 'quotation_collect_phone'
             msg.body("Para finalizarmos e Josildo te enviar as melhores opções, por favor, digite seu melhor telefone com DDD.")
@@ -236,7 +261,12 @@ def whatsapp_webhook():
 
     # --- ESTADO: quotation_pme_beneficiaries --- (Pergunta: Quantos beneficiários PME?)
     elif current_state == 'quotation_pme_beneficiaries':
-        if incoming_msg in ['1', '2', '3']:
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0
+
+        if choice in [1, 2, 3]:
             user_data[sender_number]['num_beneficiarios_pme'] = incoming_msg
             user_states[sender_number] = 'quotation_pme_region'
             msg.body(get_pme_region_text())
@@ -245,7 +275,12 @@ def whatsapp_webhook():
 
     # --- ESTADO: quotation_pme_region --- (Pergunta: Região de cobertura PME?)
     elif current_state == 'quotation_pme_region':
-        if incoming_msg in ['1', '2']:
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0
+
+        if choice in [1, 2]:
             user_data[sender_number]['regiao_pme'] = incoming_msg
             user_states[sender_number] = 'quotation_pme_collect_data'
             msg.body("Para Josildo te apresentar as melhores soluções empresariais, por favor, digite o CNPJ da empresa, seu nome e telefone com DDD.")
@@ -263,19 +298,24 @@ def whatsapp_webhook():
 
     # --- ESTADO: doubt_type --- (Caminho 2: Qual tipo de dúvida?)
     elif current_state == 'doubt_type':
-        if incoming_msg == '1': # Cobertura do plano
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0
+
+        if choice == 1: # Cobertura do plano
             user_states[sender_number] = 'doubt_coverage_collect_plan'
             msg.body("Ok! Para te ajudar, preciso saber qual plano você tem em mente ou qual operadora.")
-        elif incoming_msg == '2': # Reajuste/Valores
+        elif choice == 2: # Reajuste/Valores
             user_states[sender_number] = 'doubt_readjustment_collect_plan'
             msg.body("Compreendo. Dúvidas sobre reajuste ou valores são comuns. Para te ajudar, por favor, digite o nome do seu plano e a operadora.")
-        elif incoming_msg == '3': # Carências
+        elif choice == 3: # Carências
             user_states[sender_number] = 'doubt_care_seeking'
             msg.body(get_care_seeking_text())
-        elif incoming_msg == '4': # Como usar o plano
+        elif choice == 4: # Como usar o plano
             user_states[sender_number] = 'doubt_how_to_use_collect_operator'
             msg.body("Entendido! Dúvidas sobre como usar o plano podem surgir. Qual o nome da sua operadora de saúde?")
-        elif incoming_msg == '5': # Outra dúvida
+        elif choice == 5: # Outra dúvida
             user_states[sender_number] = 'doubt_other_description'
             msg.body("Compreendo! Para que Josildo possa te ajudar com sua dúvida específica, por favor, descreva-a brevemente no campo abaixo:")
         else: # Opção inválida para doubt_type
@@ -311,7 +351,12 @@ def whatsapp_webhook():
 
     # --- ESTADO: doubt_care_seeking --- (Pergunta: Já tem plano ou buscando?)
     elif current_state == 'doubt_care_seeking':
-        if incoming_msg in ['1', '2']:
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0
+
+        if choice in [1, 2]:
             user_data[sender_number]['car_seeking_type'] = incoming_msg
             user_states[sender_number] = 'doubt_care_collect_contact'
             msg.body("Perfeito! Para que Josildo possa te explicar tudo sobre carências, por favor, digite seu nome e telefone com DDD.")
@@ -356,13 +401,18 @@ def whatsapp_webhook():
         
     # --- ESTADO: support_type --- (Caminho 3: Qual tipo de suporte?)
     elif current_state == 'support_type':
-        if incoming_msg == '1': # Falar com Especialista
+        try:
+            choice = int(incoming_msg)
+        except ValueError:
+            choice = 0
+
+        if choice == 1: # Falar com Especialista
             user_states[sender_number] = 'support_specialist_collect_contact'
             msg.body("Certo! Alguém da equipe de Josildo entrará em contato. Para isso, por favor, digite seu nome e telefone com DDD.")
-        elif incoming_msg == '2': # Agendar reunião
+        elif choice == 2: # Agendar reunião
             user_states[sender_number] = 'support_meeting_collect_data'
             msg.body("Ótimo! Para agendarmos sua reunião com Josildo, por favor, digite seu nome, telefone com DDD e o melhor período para você (manhã/tarde).")
-        elif incoming_msg == '3': # Problema com o boleto
+        elif choice == 3: # Problema com o boleto
             user_states[sender_number] = 'support_billing_description'
             msg.body("Entendido! Para te ajudar com o problema, por favor, descreva-o brevemente e digite seu nome e telefone com DDD.")
         else: # Opção inválida para support_type
